@@ -4,11 +4,18 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 
+interface Todo {
+  task: string
+  from: string
+  due?: string
+  priority: "high" | "medium" | "low"
+}
+
 export default function Tools() {
   const { data: session } = useSession()
-  const [todos, setTodos] = useState([])
+  const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
-  const [done, setDone] = useState([])
+  const [done, setDone] = useState<number[]>([])
 
   useEffect(() => {
     if (session?.accessToken) {
@@ -19,9 +26,8 @@ export default function Tools() {
   async function fetchTodos() {
     setLoading(true)
     try {
-      // 先拿邮件列表
       const emailsRes = await fetch("/api/gmail", {
-        headers: { Authorization: `Bearer ${session.accessToken}` },
+        headers: { Authorization: `Bearer ${session!.accessToken as string}` },
       })
       const emailsData = await emailsRes.json()
 
@@ -30,7 +36,6 @@ export default function Tools() {
         return
       }
 
-      // 传给 Claude 提取 todo
       const todosRes = await fetch("/api/todos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,13 +50,13 @@ export default function Tools() {
     }
   }
 
-  function toggleDone(i) {
+  function toggleDone(i: number) {
     setDone((prev) =>
       prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]
     )
   }
 
-  const priorityColor = {
+  const priorityColor: Record<string, string> = {
     high: "text-red-500",
     medium: "text-orange-400",
     low: "text-gray-400",
