@@ -1,39 +1,65 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 
-const emailContent = `Hi everyone,
-
-This is a reminder that Homework 3 is due this Friday, May 2nd at 11:59 PM. Please submit via Canvas under the Assignments tab.
-
-Late submissions will not be accepted without a documented emergency. Reach out to the TA at support@illinois.edu no later than Wednesday if you need help.
-
-Good luck,
-Prof. Martinez`
-
 export default function EmailDetail() {
-  const [summary, setSummary] = useState<{summary: string, dueDate: string | null, actionItems: string[]} | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const emailId = searchParams.get("id")
+
+  const [email, setEmail] = useState(null)
+  const [summary, setSummary] = useState(null)
+  const [loadingEmail, setLoadingEmail] = useState(true)
+  const [loadingSummary, setLoadingSummary] = useState(true)
 
   useEffect(() => {
-    async function getSummary() {
-      try {
-        const response = await fetch("/api/summarize", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ emailContent }),
-        })
-        const data = await response.json()
-        setSummary(data)
-      } catch (error) {
-        console.error(error)
-      } finally {
-        setLoading(false)
-      }
+    if (session?.accessToken && emailId) {
+      fetchEmail()
     }
-    getSummary()
-  }, [])
+  }, [session, emailId])
+
+  async function fetchEmail() {
+    try {
+      const response = await fetch(`/api/gmail/message?id=${emailId}`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      })
+      const data = await response.json()
+      setEmail(data)
+      setLoadingEmail(false)
+      // 邮件加载好之后，生成 AI summary
+      generateSummary(data.body || data.snippet)
+    } catch (error) {
+      console.error(error)
+      setLoadingEmail(false)
+    }
+  }
+
+  async function generateSummary(content) {
+    try {
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailContent: content }),
+      })
+      const data = await response.json()
+      setSummary(data)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoadingSummary(false)
+    }
+  }
+
+  if (loadingEmail) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#2D5A4E] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -46,26 +72,26 @@ export default function EmailDetail() {
 
       {/* 邮件头部 */}
       <div className="bg-white px-4 py-4 border-b border-gray-100">
-        <div className="flex items-start justify-between mb-1">
+        <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold text-white">
-              PM
+            <div className="w-10 h-10 rounded-full bg-[#2D5A4E] flex items-center justify-center text-sm font-bold text-white">
+              {email?.sender?.[0]?.toUpperCase() || "?"}
             </div>
             <div>
-              <p className="font-semibold text-gray-900 text-sm">Prof. Martinez</p>
-              <p className="text-xs text-gray-400">To: Chase • 10:23AM</p>
+              <p className="font-semibold text-gray-900 text-sm">{email?.sender}</p>
+              <p className="text-xs text-gray-400">
+                {email?.date ? new Date(email.date).toLocaleString() : ""}
+              </p>
             </div>
           </div>
-          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
-            Assignment
-          </span>
         </div>
+        <p className="font-medium text-gray-900 mt-3 text-sm">{email?.subject}</p>
       </div>
 
       {/* AI Summary 卡片 */}
       <div className="mx-4 mt-4 bg-[#2D5A4E] rounded-2xl p-4 text-white">
         <p className="text-xs font-semibold mb-2 opacity-70">AI Summary</p>
-        {loading ? (
+        {loadingSummary ? (
           <div className="space-y-2">
             <div className="h-3 bg-white opacity-20 rounded animate-pulse"></div>
             <div className="h-3 bg-white opacity-20 rounded animate-pulse w-3/4"></div>
@@ -85,24 +111,15 @@ export default function EmailDetail() {
             )}
           </>
         ) : (
-          <p className="text-sm opacity-80">Failed to load summary.</p>
+          <p className="text-sm opacity-80">Could not generate summary.</p>
         )}
       </div>
 
       {/* 邮件正文 */}
-      <div className="mx-4 mt-4 bg-white rounded-2xl p-4">
-        <p className="text-sm text-gray-600 leading-relaxed mb-3">Hi everyone,</p>
-        <p className="text-sm text-gray-600 leading-relaxed mb-3">
-          This is a reminder that Homework 3 is due this{" "}
-          <span className="font-bold text-gray-900">Friday, May 2nd at 11:59 PM</span>.
-          Please submit via Canvas under the Assignments tab.
+      <div className="mx-4 mt-4 mb-24 bg-white rounded-2xl p-4">
+        <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+          {email?.body || email?.snippet}
         </p>
-        <p className="text-sm text-gray-600 leading-relaxed mb-3">
-          Late submissions will not be accepted without a documented emergency.
-          Reach out to the TA at support@illinois.edu no later than Wednesday if you need help.
-        </p>
-        <p className="text-sm text-gray-600 leading-relaxed">Good luck,</p>
-        <p className="text-sm text-gray-600">Prof. Martinez</p>
       </div>
 
       {/* 底部按钮 */}
