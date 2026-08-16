@@ -30,7 +30,7 @@ export default function Home() {
         </div>
 
         {/* Sign In 按钮 — 现在点击会跳转到 /inbox */}
-        <Link href="/inbox">
+        <Link href="/brief">
           <button className="w-full bg-[#2D5A4E] text-white rounded-lg py-3 text-sm font-medium mb-4">
             Sign In
           </button>
@@ -42,7 +42,7 @@ export default function Home() {
           <div className="flex-1 h-px bg-gray-200"></div>
         </div>
 
-        <Link href="/inbox">
+        <Link href="/brief">
           <button className="w-full border border-gray-200 rounded-lg py-3 text-sm text-gray-600 flex items-center justify-center gap-2">
             <span>G</span> Continue with Google
           </button>
