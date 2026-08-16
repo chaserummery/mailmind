@@ -13,7 +13,7 @@ Good luck,
 Prof. Martinez`
 
 export default function EmailDetail() {
-  const [summary, setSummary] = useState(null)
+  const [summary, setSummary] = useState<{summary: string, dueDate: string | null, actionItems: string[]} | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
