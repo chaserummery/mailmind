@@ -1,6 +1,40 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Link from "next/link"
 
+const emailContent = `Hi everyone,
+
+This is a reminder that Homework 3 is due this Friday, May 2nd at 11:59 PM. Please submit via Canvas under the Assignments tab.
+
+Late submissions will not be accepted without a documented emergency. Reach out to the TA at support@illinois.edu no later than Wednesday if you need help.
+
+Good luck,
+Prof. Martinez`
+
 export default function EmailDetail() {
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function getSummary() {
+      try {
+        const response = await fetch("/api/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emailContent }),
+        })
+        const data = await response.json()
+        setSummary(data)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    getSummary()
+  }, [])
+
   return (
     <div className="min-h-screen bg-gray-50">
 
@@ -31,8 +65,28 @@ export default function EmailDetail() {
       {/* AI Summary 卡片 */}
       <div className="mx-4 mt-4 bg-[#2D5A4E] rounded-2xl p-4 text-white">
         <p className="text-xs font-semibold mb-2 opacity-70">AI Summary</p>
-        <p className="text-sm font-medium mb-1">HW3 is due this Friday May 2 at 11:59 PM</p>
-        <p className="text-xs opacity-80">No late submissions without documented emergency. Contact TA by Wednesday for help.</p>
+        {loading ? (
+          <div className="space-y-2">
+            <div className="h-3 bg-white opacity-20 rounded animate-pulse"></div>
+            <div className="h-3 bg-white opacity-20 rounded animate-pulse w-3/4"></div>
+          </div>
+        ) : summary ? (
+          <>
+            <p className="text-sm font-medium mb-2">{summary.summary}</p>
+            {summary.dueDate && (
+              <p className="text-xs opacity-80 mb-2">📅 Due: {summary.dueDate}</p>
+            )}
+            {summary.actionItems?.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {summary.actionItems.map((item, i) => (
+                  <p key={i} className="text-xs opacity-80">• {item}</p>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm opacity-80">Failed to load summary.</p>
+        )}
       </div>
 
       {/* 邮件正文 */}
