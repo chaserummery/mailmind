@@ -44,7 +44,11 @@ export async function GET(request) {
       const senderName = from.includes("<")
         ? from.split("<")[0].trim().replace(/"/g, "")
         : from
-  
+  // 清理正文：去掉超长 URL 和多余空行
+body = body
+.replace(/https?:\/\/\S{100,}/g, "[link]")
+.replace(/\n{3,}/g, "\n\n")
+.trim()
       return Response.json({ subject, sender: senderName, date, body, snippet: data.snippet })
     } catch (error) {
       console.error(error)
