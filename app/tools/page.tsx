@@ -1,108 +1,139 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import Link from "next/link"
 
 export default function Tools() {
+  const { data: session } = useSession()
+  const [todos, setTodos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [done, setDone] = useState([])
+
+  useEffect(() => {
+    if (session?.accessToken) {
+      fetchTodos()
+    }
+  }, [session])
+
+  async function fetchTodos() {
+    setLoading(true)
+    try {
+      // 先拿邮件列表
+      const emailsRes = await fetch("/api/gmail", {
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      })
+      const emailsData = await emailsRes.json()
+
+      if (!emailsData.emails?.length) {
+        setLoading(false)
+        return
+      }
+
+      // 传给 Claude 提取 todo
+      const todosRes = await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: emailsData.emails }),
+      })
+      const todosData = await todosRes.json()
+      setTodos(todosData)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function toggleDone(i) {
+    setDone((prev) =>
+      prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]
+    )
+  }
+
+  const priorityColor = {
+    high: "text-red-500",
+    medium: "text-orange-400",
+    low: "text-gray-400",
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-
-      {/* 顶部 */}
       <div className="bg-white px-4 pt-6 pb-3 border-b border-gray-100">
-        <h1 className="text-2xl font-bold text-gray-900">Tool</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Today's Tasks</h1>
+        <p className="text-xs text-gray-400 mt-0.5">Extracted from your inbox by AI</p>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
-
-        {/* Assignments */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <span className="font-semibold text-gray-900 text-sm">Assignments</span>
-            <span className="text-xs text-gray-400">3 active</span>
+      <div className="px-4 py-4">
+        {loading ? (
+          <div className="space-y-3 mt-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-2xl p-4 shadow-sm">
+                <div className="h-3 bg-gray-100 rounded animate-pulse mb-2 w-3/4"></div>
+                <div className="h-3 bg-gray-100 rounded animate-pulse w-1/2"></div>
+              </div>
+            ))}
+            <p className="text-center text-xs text-gray-400 mt-4">
+              Reading your emails and extracting tasks...
+            </p>
           </div>
-          <div className="space-y-3">
-            {[
-              { name: "HW3 Final Project Prototype", course: "INFO 333 • Professor Martinez", due: "Due: Today", dueColor: "text-red-500" },
-              { name: "Lab 4", course: "IS 308", due: "Due: in 2 days", dueColor: "text-orange-500" },
-              { name: "Final Proposal", course: "IS 226 • Professor Hendricks", due: "Due: in 3 days", dueColor: "text-orange-400" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start justify-between">
-                <div className="flex items-start gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-gray-300 mt-0.5 flex-shrink-0"></div>
-                  <div>
-                    <p className="text-sm text-gray-800 font-medium">{item.name}</p>
-                    <p className="text-xs text-gray-400">{item.course}</p>
+        ) : todos.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-2xl mb-2">🎉</p>
+            <p className="text-gray-500 text-sm">No action items found!</p>
+            <p className="text-gray-400 text-xs mt-1">Your inbox looks clear.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 mt-2">
+            {todos.map((todo, i) => (
+              <div
+                key={i}
+                className={`bg-white rounded-2xl p-4 shadow-sm transition-opacity ${
+                  done.includes(i) ? "opacity-40" : ""
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => toggleDone(i)}
+                    className={`w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                      done.includes(i)
+                        ? "bg-[#2D5A4E] border-[#2D5A4E]"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {done.includes(i) && (
+                      <span className="text-white text-xs">✓</span>
+                    )}
+                  </button>
+                  <div className="flex-1">
+                    <p className={`text-sm font-medium text-gray-900 ${done.includes(i) ? "line-through" : ""}`}>
+                      {todo.task}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400">{todo.from}</span>
+                      {todo.due && (
+                        <>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-xs text-orange-500 font-medium">
+                            {todo.due}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  <span className={`text-xs font-medium ${priorityColor[todo.priority] || "text-gray-400"}`}>
+                    {todo.priority}
+                  </span>
                 </div>
-                <span className={`text-xs font-medium ${item.dueColor} flex-shrink-0 ml-2`}>{item.due}</span>
               </div>
             ))}
+            <p className="text-center text-xs text-gray-400 mt-3">
+              {todos.length - done.length} tasks remaining
+            </p>
           </div>
-        </div>
-
-        {/* Appointments */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <span className="font-semibold text-gray-900 text-sm">Appointments</span>
-            <span className="text-xs text-gray-400">2 upcoming</span>
-          </div>
-          <div className="space-y-3">
-            {[
-              { name: "iSchool Advising", location: "408 E Green Street", time: "Tomorrow Apr 16 • 2:00PM", done: true },
-              { name: "Office Hour - Pro.Chen", location: "Lincoln Hall 2070", time: "Thu, Apr 17 • 4:00 PM", done: true },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-gray-800 font-medium">{item.name}</p>
-                  <p className="text-xs text-[#2D5A4E]">{item.location}</p>
-                  <p className="text-xs text-gray-400">{item.time}</p>
-                </div>
-                <button className="text-xs border border-[#2D5A4E] text-[#2D5A4E] px-2 py-0.5 rounded-full flex-shrink-0 ml-2">
-                  ✓ Mark Done
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Package */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <span className="font-semibold text-gray-900 text-sm">Package</span>
-            <span className="text-xs text-gray-400">1 ready</span>
-          </div>
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-800 font-medium">Presby Hall</p>
-              <p className="text-xs text-gray-400">Front desk</p>
-              <p className="text-xs text-[#2D5A4E] font-medium">Arrived yesterday</p>
-            </div>
-            <button className="text-xs bg-orange-100 text-orange-600 px-3 py-1 rounded-full flex-shrink-0 ml-2 font-medium">
-              View Picture
-            </button>
-          </div>
-        </div>
-
-        {/* Events */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <span className="font-semibold text-gray-900 text-sm">Events</span>
-            <span className="text-xs text-gray-400">3 this week</span>
-          </div>
-          <div className="space-y-3">
-            {[
-              { name: "CS Colloquium — Dr. Lin", location: "DCL 1310", time: "Fri, Apr 18 • 3:00 PM", timeColor: "text-red-500" },
-              { name: "iSchool Spring Showcase", location: "iSchool Building", time: "Sat, Apr 19 • 10:00 AM", timeColor: "text-gray-400" },
-            ].map((item, i) => (
-              <div key={i}>
-                <p className="text-sm text-gray-800 font-medium">{item.name}</p>
-                <p className="text-xs text-gray-400">{item.location}</p>
-                <p className={`text-xs font-medium ${item.timeColor}`}>{item.time}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
+        )}
       </div>
 
-      {/* 底部导航 */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-8 py-3 flex justify-around">
         <Link href="/inbox" className="flex flex-col items-center gap-1">
           <span className="text-gray-400 text-xl">⌂</span>
@@ -110,14 +141,13 @@ export default function Tools() {
         </Link>
         <button className="flex flex-col items-center gap-1">
           <span className="text-[#2D5A4E] text-xl">⚙</span>
-          <span className="text-xs text-[#2D5A4E] font-medium">Tools</span>
+          <span className="text-xs text-[#2D5A4E] font-medium">Tasks</span>
         </button>
         <Link href="/profile" className="flex flex-col items-center gap-1">
           <span className="text-gray-400 text-xl">◯</span>
           <span className="text-xs text-gray-400">Profile</span>
         </Link>
       </div>
-
     </div>
   )
 }
