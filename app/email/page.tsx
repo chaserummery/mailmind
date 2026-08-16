@@ -1,12 +1,12 @@
 // @ts-nocheck
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 
-export default function EmailDetail() {
+function EmailContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const emailId = searchParams.get("id")
@@ -30,7 +30,6 @@ export default function EmailDetail() {
       const data = await response.json()
       setEmail(data)
       setLoadingEmail(false)
-      // 邮件加载好之后，生成 AI summary
       generateSummary(data.body || data.snippet)
     } catch (error) {
       console.error(error)
@@ -64,14 +63,11 @@ export default function EmailDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
-      {/* 顶部导航 */}
       <div className="bg-white px-4 pt-6 pb-3 border-b border-gray-100 flex items-center gap-3">
         <Link href="/inbox" className="text-gray-400 text-sm">← Inbox</Link>
         <span className="text-gray-900 font-semibold">Email</span>
       </div>
 
-      {/* 邮件头部 */}
       <div className="bg-white px-4 py-4 border-b border-gray-100">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -89,7 +85,6 @@ export default function EmailDetail() {
         <p className="font-medium text-gray-900 mt-3 text-sm">{email?.subject}</p>
       </div>
 
-      {/* AI Summary 卡片 */}
       <div className="mx-4 mt-4 bg-[#2D5A4E] rounded-2xl p-4 text-white">
         <p className="text-xs font-semibold mb-2 opacity-70">AI Summary</p>
         {loadingSummary ? (
@@ -116,14 +111,12 @@ export default function EmailDetail() {
         )}
       </div>
 
-      {/* 邮件正文 */}
       <div className="mx-4 mt-4 mb-24 bg-white rounded-2xl p-4">
         <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
           {email?.body || email?.snippet}
         </p>
       </div>
 
-      {/* 底部按钮 */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-4 flex gap-3">
         <button className="flex-1 bg-[#2D5A4E] text-white rounded-xl py-3 text-sm font-medium">
           ✓ Mark Done
@@ -132,7 +125,18 @@ export default function EmailDetail() {
           Reply
         </button>
       </div>
-
     </div>
+  )
+}
+
+export default function EmailDetail() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#2D5A4E] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <EmailContent />
+    </Suspense>
   )
 }
